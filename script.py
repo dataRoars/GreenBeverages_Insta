@@ -190,13 +190,7 @@ if __name__ == "__main__":
 
     # ✅ REMOVE DUPLICATES FROM API
     account_df = account_df.drop_duplicates(subset=["date"])
-    
-    # ✅ REMOVE EXISTING POSTS FROM BIGQUERY
-    existing_post_ids = get_existing_post_ids()
-    post_df = post_df[~post_df["post_id"].isin(existing_post_ids)]
 
-    print("Post rows (after BQ filter):", len(post_df))
-    
     # ✅ FILTER EXISTING DATES FROM BIGQUERY
     existing_dates = get_existing_dates(TABLE_ACCOUNT)
     account_df = account_df[~account_df["date"].isin(existing_dates)]
@@ -206,7 +200,13 @@ if __name__ == "__main__":
     # POSTS DATA
     posts = get_posts()
     post_df = build_post_data(posts)
+    
+    # ✅ REMOVE EXISTING POSTS FROM BIGQUERY
+    existing_post_ids = get_existing_post_ids()
+    post_df = post_df[~post_df["post_id"].isin(existing_post_ids)]
 
+    print("Post rows (after BQ filter):", len(post_df))
+    
     # LOAD
     load_to_bigquery(account_df, TABLE_ACCOUNT)
     load_to_bigquery(post_df, TABLE_POST)
