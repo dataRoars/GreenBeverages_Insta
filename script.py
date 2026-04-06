@@ -3,6 +3,8 @@ import pandas as pd
 from datetime import datetime
 import os
 from google.cloud import bigquery
+import json
+from google.oauth2 import service_account
 
 # -----------------------------
 # CONFIG
@@ -23,7 +25,7 @@ BASE_URL = "https://graph.facebook.com/v19.0"
 def get_account_data():
     url = f"{BASE_URL}/{IG_USER_ID}/insights"
     params = {
-        "metric": "reach,profile_views",
+        "metric": "reach",
         "period": "day",
         "access_token": ACCESS_TOKEN
     }
@@ -108,14 +110,29 @@ def build_post_data(posts):
 
 
 # -----------------------------
-# 4. LOAD TO BIGQUERY
+# BIGQUERY CLIENT
+# -----------------------------
+def get_bq_client():
+    creds_json = os.getenv("GCP_CREDENTIALS")
+    creds_dict = json.loads(creds_json)
+
+    credentials = service_account.Credentials.from_service_account_info(creds_dict)
+
+    return bigquery.Client(
+        credentials=credentials,
+        project=PROJECT_ID
+    )
+
+
+# -----------------------------
+# LOAD TO BIGQUERY
 # -----------------------------
 def load_to_bigquery(df, table):
     if df.empty:
         print(f"⚠️ No data for {table}, skipping...")
         return
 
-    client = bigquery.Client(project=PROJECT_ID)
+    client = get_bq_client()
 
     job = client.load_table_from_dataframe(
         df,
@@ -127,7 +144,6 @@ def load_to_bigquery(df, table):
 
     job.result()
     print(f"✅ Loaded {len(df)} rows into {table}")
-
 
 # -----------------------------
 # MAIN
