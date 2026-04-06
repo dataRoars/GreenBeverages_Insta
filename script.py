@@ -20,7 +20,41 @@ TABLE_ACCOUNT = "instagram_account"
 BASE_URL = "https://graph.facebook.com/v19.0"
 
 # -----------------------------
-# 1. ACCOUNT LEVEL DATA (FIXED LIKE LOCAL)
+# BIGQUERY CLIENT
+# -----------------------------
+def get_bq_client():
+    creds_json = os.getenv("GCP_CREDENTIALS")
+    creds_dict = json.loads(creds_json)
+
+    credentials = service_account.Credentials.from_service_account_info(creds_dict)
+
+    return bigquery.Client(
+        credentials=credentials,
+        project=PROJECT_ID
+    )
+
+# -----------------------------
+# GET EXISTING DATES (ACCOUNT)
+# -----------------------------
+def get_existing_dates(table):
+    client = get_bq_client()
+
+    query = f"""
+        SELECT DISTINCT date 
+        FROM `{PROJECT_ID}.{DATASET}.{table}`
+    """
+
+    try:
+        result = client.query(query).result()
+        existing_dates = set([str(row.date) for row in result])
+        print("Existing dates in BQ:", existing_dates)
+        return existing_dates
+    except:
+        print("Table not found or empty, first run.")
+        return set()
+
+# -----------------------------
+# 1. ACCOUNT DATA
 # -----------------------------
 def get_account_data():
     url = f"{BASE_URL}/{IG_USER_ID}/insights"
@@ -47,13 +81,11 @@ def get_account_data():
             })
 
     df = pd.DataFrame(data)
-    print("Account rows:", len(df))
-    print(df.head())
+    print("Account rows (raw):", len(df))
     return df
 
-
 # -----------------------------
-# 2. GET ALL POSTS
+# 2. POSTS
 # -----------------------------
 def get_posts():
     url = f"{BASE_URL}/{IG_USER_ID}/media"
@@ -81,9 +113,8 @@ def get_posts():
     print("Total posts fetched:", len(posts))
     return posts
 
-
 # -----------------------------
-# 3. BUILD POST DATA
+# BUILD POST DATA
 # -----------------------------
 def build_post_data(posts):
     data = []
@@ -99,43 +130,26 @@ def build_post_data(posts):
         })
 
     df = pd.DataFrame(data)
-    print("Post rows:", len(df))
-    print(df.head())
+
+    # ✅ Remove duplicates inside dataframe
+    df = df.drop_duplicates(subset=["post_id"])
+
+    print("Post rows (after dedupe):", len(df))
     return df
-
-
-# -----------------------------
-# BIGQUERY CLIENT
-# -----------------------------
-def get_bq_client():
-    creds_json = os.getenv("GCP_CREDENTIALS")
-    creds_dict = json.loads(creds_json)
-
-    credentials = service_account.Credentials.from_service_account_info(creds_dict)
-
-    return bigquery.Client(
-        credentials=credentials,
-        project=PROJECT_ID
-    )
-
 
 # -----------------------------
 # LOAD TO BIGQUERY
 # -----------------------------
 def load_to_bigquery(df, table):
     if df.empty:
-        print(f"❌ DataFrame EMPTY for {table}")
+        print(f"⚠️ No data for {table}, skipping...")
         return
 
-    print(f"\n📊 {table} DF SHAPE:", df.shape)
-    print(df.head())
-    print(df.dtypes)
-
     client = get_bq_client()
-    print("PROJECT:", client.project)
-
     table_id = f"{PROJECT_ID}.{DATASET}.{table}"
-    print("Uploading to:", table_id)
+
+    print(f"\nUploading to {table_id}")
+    print("Rows:", len(df))
 
     job = client.load_table_from_dataframe(
         df,
@@ -147,33 +161,32 @@ def load_to_bigquery(df, table):
 
     job.result()
 
-    print("JOB STATE:", job.state)
-    print("ROWS LOADED (BQ):", job.output_rows)
-    print("ERRORS:", job.errors)
+    print("Rows loaded:", job.output_rows)
 
-    # 🔍 FINAL CHECK (VERY IMPORTANT)
-    query = f"SELECT COUNT(*) as cnt FROM `{table_id}`"
-    result = client.query(query).result()
-
-    for row in result:
-        print("ACTUAL ROWS IN TABLE:", row.cnt)
 # -----------------------------
 # MAIN
 # -----------------------------
 if __name__ == "__main__":
     print("🚀 Starting pipeline...")
 
-    print("Fetching account data...")
+    # ACCOUNT DATA
     account_df = get_account_data()
 
-    print("Fetching posts...")
-    posts = get_posts()
+    # ✅ REMOVE DUPLICATES FROM API
+    account_df = account_df.drop_duplicates(subset=["date"])
 
-    print("Building post data...")
+    # ✅ FILTER EXISTING DATES FROM BIGQUERY
+    existing_dates = get_existing_dates(TABLE_ACCOUNT)
+    account_df = account_df[~account_df["date"].isin(existing_dates)]
+
+    print("Account rows (final):", len(account_df))
+
+    # POSTS DATA
+    posts = get_posts()
     post_df = build_post_data(posts)
 
-    print("Uploading to BigQuery...")
+    # LOAD
     load_to_bigquery(account_df, TABLE_ACCOUNT)
     load_to_bigquery(post_df, TABLE_POST)
 
-    print("✅ Done!")
+    print("✅ DONE")
