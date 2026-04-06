@@ -4,10 +4,18 @@ from datetime import datetime
 import os
 from google.cloud import bigquery
 
+import json
+
+# Create credentials file from GitHub secret
+with open("credentials.json", "w") as f:
+    f.write(os.getenv("GCP_CREDENTIALS"))
+
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "credentials.json"
+
 ACCESS_TOKEN = os.getenv("ACCESS_TOKEN")
 IG_USER_ID = "17841404064297182"
 
-PROJECT_ID = "your-project-id"
+PROJECT_ID = "green-beverages-492510"
 DATASET = "social_media"
 TABLE_POST = "instagram_posts"
 TABLE_ACCOUNT = "instagram_account"
