@@ -25,5 +25,5 @@ jobs:
       - name: Run script
         env:
           ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
-          GOOGLE_APPLICATION_CREDENTIALS: credentials.json
+          GCP_CREDENTIALS: ${{ secrets.GCP_CREDENTIALS }}
         run: python script.py
