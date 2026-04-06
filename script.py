@@ -20,7 +20,7 @@ TABLE_ACCOUNT = "instagram_account"
 BASE_URL = "https://graph.facebook.com/v19.0"
 
 # -----------------------------
-# 1. ACCOUNT LEVEL DATA
+# 1. ACCOUNT LEVEL DATA (FIXED LIKE LOCAL)
 # -----------------------------
 def get_account_data():
     url = f"{BASE_URL}/{IG_USER_ID}/insights"
@@ -38,21 +38,17 @@ def get_account_data():
         return pd.DataFrame()
 
     data = []
-    today = datetime.utcnow().date()
 
     for metric in res.get("data", []):
-        name = metric.get("name")
-
         for val in metric.get("values", []):
             data.append({
                 "date": val["end_time"][:10],
-                "metric": name,
-                "value": val["value"],
-                "load_date": str(today)
+                "reach": val["value"]
             })
 
     df = pd.DataFrame(data)
     print("Account rows:", len(df))
+    print(df.head())
     return df
 
 
@@ -87,11 +83,10 @@ def get_posts():
 
 
 # -----------------------------
-# 3. POST DATA (NO EXTRA API CALL NEEDED)
+# 3. BUILD POST DATA
 # -----------------------------
 def build_post_data(posts):
     data = []
-    today = datetime.utcnow().date()
 
     for post in posts:
         data.append({
@@ -100,12 +95,12 @@ def build_post_data(posts):
             "media_type": post.get("media_type"),
             "caption": post.get("caption"),
             "likes": post.get("like_count"),
-            "comments": post.get("comments_count"),
-            "load_date": str(today)
+            "comments": post.get("comments_count")
         })
 
     df = pd.DataFrame(data)
     print("Post rows:", len(df))
+    print(df.head())
     return df
 
 
@@ -134,16 +129,21 @@ def load_to_bigquery(df, table):
 
     client = get_bq_client()
 
+    table_id = f"{PROJECT_ID}.{DATASET}.{table}"
+    print("Uploading to:", table_id)
+
     job = client.load_table_from_dataframe(
         df,
-        f"{PROJECT_ID}.{DATASET}.{table}",
+        table_id,
         job_config=bigquery.LoadJobConfig(
             write_disposition="WRITE_APPEND"
         )
     )
 
     job.result()
-    print(f"✅ Loaded {len(df)} rows into {table}")
+
+    print(f"✅ Rows loaded to {table}: {job.output_rows}")
+
 
 # -----------------------------
 # MAIN
