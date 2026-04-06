@@ -1,0 +1,29 @@
+name: Instagram Pipeline
+
+on:
+  schedule:
+    - cron: "30 14 * * *"   # 8 PM IST
+    - cron: "30 16 * * *"   # 10 PM IST
+  workflow_dispatch:
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run script
+        env:
+          ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
+          GOOGLE_APPLICATION_CREDENTIALS: credentials.json
+        run: python script.py
