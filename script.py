@@ -52,7 +52,23 @@ def get_existing_dates(table):
     except:
         print("Table not found or empty, first run.")
         return set()
+# -----------------------------
+# GET EXISTING POST IDS
+# -----------------------------
+def get_existing_post_ids():
+    client = get_bq_client()
 
+    query = f"""
+        SELECT DISTINCT post_id 
+        FROM `{PROJECT_ID}.{DATASET}.{TABLE_POST}`
+    """
+
+    try:
+        result = client.query(query).result()
+        return set([row.post_id for row in result])
+    except:
+        print("Post table not found (first run)")
+        return set()
 # -----------------------------
 # 1. ACCOUNT DATA
 # -----------------------------
@@ -174,7 +190,13 @@ if __name__ == "__main__":
 
     # ✅ REMOVE DUPLICATES FROM API
     account_df = account_df.drop_duplicates(subset=["date"])
+    
+    # ✅ REMOVE EXISTING POSTS FROM BIGQUERY
+    existing_post_ids = get_existing_post_ids()
+    post_df = post_df[~post_df["post_id"].isin(existing_post_ids)]
 
+    print("Post rows (after BQ filter):", len(post_df))
+    
     # ✅ FILTER EXISTING DATES FROM BIGQUERY
     existing_dates = get_existing_dates(TABLE_ACCOUNT)
     account_df = account_df[~account_df["date"].isin(existing_dates)]
