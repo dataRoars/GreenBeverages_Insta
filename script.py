@@ -124,10 +124,15 @@ def get_bq_client():
 # -----------------------------
 def load_to_bigquery(df, table):
     if df.empty:
-        print(f"⚠️ No data for {table}, skipping...")
+        print(f"❌ DataFrame EMPTY for {table}")
         return
 
+    print(f"\n📊 {table} DF SHAPE:", df.shape)
+    print(df.head())
+    print(df.dtypes)
+
     client = get_bq_client()
+    print("PROJECT:", client.project)
 
     table_id = f"{PROJECT_ID}.{DATASET}.{table}"
     print("Uploading to:", table_id)
@@ -142,9 +147,16 @@ def load_to_bigquery(df, table):
 
     job.result()
 
-    print(f"✅ Rows loaded to {table}: {job.output_rows}")
+    print("JOB STATE:", job.state)
+    print("ROWS LOADED (BQ):", job.output_rows)
+    print("ERRORS:", job.errors)
 
+    # 🔍 FINAL CHECK (VERY IMPORTANT)
+    query = f"SELECT COUNT(*) as cnt FROM `{table_id}`"
+    result = client.query(query).result()
 
+    for row in result:
+        print("ACTUAL ROWS IN TABLE:", row.cnt)
 # -----------------------------
 # MAIN
 # -----------------------------
