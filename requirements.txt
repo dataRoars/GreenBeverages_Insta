@@ -1,5 +1,7 @@
 requests
 pandas
 google-cloud-bigquery
+google-auth
 pandas-gbq
-pyarrow
+db-dtypes
+openpyxl
